@@ -1,0 +1,541 @@
+<title>maimai Pair Finder</title>
+<meta name="viewport" content="width=device-width">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: one control panel up top (a level or constant range for each player, quiet filters below),
+   then a results grid of song cards. Each card lists the P1 and P2 charts in two rows. */
+:root {
+  --bg: #eef2f7;
+  --surface: #ffffff;
+  --surface-2: #e6ecf4;
+  --ink: #131d2b;
+  --muted: #566679;
+  --line: #d3dbe6;
+  --accent: #0b8b8b;
+  --accent-ink: #ffffff;
+  --focus: #0b8b8b;
+
+  --d0: #2fb560; --d0-ink: #06240f;
+  --d1: #f5a623; --d1-ink: #2d1a00;
+  --d2: #d63a30; --d2-ink: #ffffff;
+  --d3: #8e44d6; --d3-ink: #ffffff;
+  --d4: #efe3fb; --d4-ink: #4a2a78; --d4-line: #8e44d6;
+
+  --font-display: "Rubik", "Noto Sans JP", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Noto Sans JP", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1520;
+    --surface: #152131;
+    --surface-2: #1d2c40;
+    --ink: #e7edf5;
+    --muted: #92a2b6;
+    --line: #26374c;
+    --accent: #3cc9c2;
+    --accent-ink: #05201f;
+    --focus: #3cc9c2;
+    --d4: #3a2a55; --d4-ink: #e6d3ff; --d4-line: #a86be8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1520;
+  --surface: #152131;
+  --surface-2: #1d2c40;
+  --ink: #e7edf5;
+  --muted: #92a2b6;
+  --line: #26374c;
+  --accent: #3cc9c2;
+  --accent-ink: #05201f;
+  --focus: #3cc9c2;
+  --d4: #3a2a55; --d4-ink: #e6d3ff; --d4-line: #a86be8;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1100px; margin-inline: auto; display: flex; flex-direction: column; gap: 20px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* header */
+.head h1 { font-size: clamp(26px, 5vw, 36px); font-weight: 700; letter-spacing: -0.01em; }
+.head p { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+
+/* control panel */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 18px; }
+.players { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: end; }
+.player { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.player > label, .player > .plabel { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.range { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+.range.single { grid-template-columns: 1fr; }
+.range .to { color: var(--muted); font-size: 13px; }
+.select-wrap { position: relative; min-width: 0; }
+.select-wrap select, .num {
+  appearance: none; width: 100%; cursor: pointer;
+  font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1.1;
+  padding: 10px 34px 10px 12px; background: var(--surface-2); border: 2px solid transparent; border-radius: 10px;
+}
+.num { cursor: text; padding-right: 12px; font-variant-numeric: tabular-nums; min-width: 0; }
+.select-wrap select:hover, .num:hover { border-color: var(--line); }
+.select-wrap::after {
+  content: ""; position: absolute; right: 14px; top: 50%; width: 8px; height: 8px; margin-top: -6px;
+  border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); pointer-events: none;
+}
+.swap {
+  align-self: end; width: 44px; height: 52px; border-radius: 10px; border: 1px solid var(--line);
+  background: transparent; cursor: pointer; color: var(--muted); font-size: 18px;
+}
+.swap:hover { color: var(--ink); border-color: var(--muted); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 14px 28px; border-top: 1px solid var(--line); padding-top: 16px; }
+.fgroup { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fgroup > span { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.chiprow { display: flex; flex-wrap: wrap; gap: 6px; }
+.toggle { position: relative; }
+.toggle input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.toggle span {
+  display: inline-flex; align-items: center; min-height: 34px; padding: 4px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; font-size: 13px; font-weight: 500; color: var(--muted); user-select: none;
+}
+.toggle input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.toggle input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* results bar */
+.bar { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; }
+.count { font-family: var(--font-display); font-size: 18px; font-weight: 500; margin: 0; min-width: 0; }
+.count b { font-weight: 700; color: var(--accent); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.tools input, .tools select {
+  min-height: 38px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); min-width: 0;
+}
+.tools input { width: min(100%, 240px); }
+
+/* cards */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+.song { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.top { display: flex; gap: 12px; min-width: 0; }
+.jacket {
+  --j: 68px; flex: none; width: var(--j); height: var(--j); border-radius: 8px; background-color: var(--surface-2);
+  background-image: url("jackets.webp"); background-repeat: no-repeat;
+  background-size: calc(var(--cols) * var(--j)) auto;
+  background-position: calc(var(--c) * var(--j) * -1) calc(var(--r) * var(--j) * -1);
+}
+.meta { min-width: 0; }
+.meta h3 { font-size: 16px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+.meta .artist { margin: 2px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.meta .sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pairs { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; }
+.who { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 6px;
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.chip .tag { font-family: var(--font-body); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; padding: 1px 4px; border-radius: 3px; background: rgba(0,0,0,0.22); color: inherit; }
+.chip.dx .tag { background: rgba(255,255,255,0.88); color: #111; }
+.chip.d0 { background: var(--d0); color: var(--d0-ink); }
+.chip.d1 { background: var(--d1); color: var(--d1-ink); }
+.chip.d2 { background: var(--d2); color: var(--d2-ink); }
+.chip.d3 { background: var(--d3); color: var(--d3-ink); }
+.chip.d4 { background: var(--d4); color: var(--d4-ink); box-shadow: inset 0 0 0 1px var(--d4-line); }
+.chip.d0 .tag, .chip.d1 .tag { background: rgba(0,0,0,0.16); }
+.chip.dx.d0 .tag, .chip.dx.d1 .tag { background: rgba(255,255,255,0.8); }
+
+.more { align-self: center; min-height: 42px; padding: 8px 22px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-weight: 500; }
+.more:hover { border-color: var(--muted); }
+.empty { text-align: center; padding: 40px 16px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); }
+.empty strong { display: block; color: var(--ink); font-family: var(--font-display); font-size: 18px; margin-bottom: 4px; }
+.foot { font-size: 12.5px; color: var(--muted); max-width: 80ch; }
+.foot a { color: inherit; }
+
+@media (max-width: 640px) {
+  .players { grid-template-columns: 1fr; }
+  .swap { display: none; }
+  .panel { padding: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <h1>maimai Pair Finder</h1>
+    <p>Pick a level or a range for each player. Every song below has a chart in each player's range, so you can play it together.</p>
+  </header>
+
+  <section class="panel" aria-label="Find songs">
+    <div class="players">
+      <div class="player" role="group" aria-labelledby="lblA">
+        <span class="plabel" id="lblA">Player 1 plays</span>
+        <div class="range" id="rangeA"></div>
+      </div>
+      <button class="swap" id="swap" type="button" aria-label="Swap the two players" title="Swap players">&#8646;</button>
+      <div class="player" role="group" aria-labelledby="lblB">
+        <span class="plabel" id="lblB">Player 2 plays</span>
+        <div class="range" id="rangeB"></div>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div class="fgroup" role="radiogroup" aria-label="Filter by">
+        <span>Filter by</span>
+        <div class="chiprow">
+          <label class="toggle"><input type="radio" name="mode" value="level" checked><span>Level (12, 12+)</span></label>
+          <label class="toggle"><input type="radio" name="mode" value="const"><span>Constant (12.4)</span></label>
+        </div>
+      </div>
+      <div class="fgroup" role="radiogroup" aria-label="Range or single value">
+        <span>Each player</span>
+        <div class="chiprow">
+          <label class="toggle"><input type="radio" name="span" value="range" checked><span>Range (12 to 12+)</span></label>
+          <label class="toggle"><input type="radio" name="span" value="single"><span>Single value</span></label>
+        </div>
+      </div>
+      <div class="fgroup" role="radiogroup" aria-label="Game version">
+        <span>Version</span>
+        <div class="chiprow">
+          <label class="toggle"><input type="radio" name="region" value="intl" checked><span>International</span></label>
+          <label class="toggle"><input type="radio" name="region" value="jp"><span>Japan</span></label>
+        </div>
+      </div>
+      <div class="fgroup">
+        <span>Chart type</span>
+        <div class="chiprow">
+          <label class="toggle"><input type="checkbox" id="tStd" checked><span>Standard</span></label>
+          <label class="toggle"><input type="checkbox" id="tDx" checked><span>DX</span></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-live="polite">
+    <div class="bar">
+      <p class="count" id="count"></p>
+      <div class="tools">
+        <input id="q" type="search" placeholder="Search (romaji works)" aria-label="Search title or artist, romaji works" autocomplete="off">
+        <select id="sort" aria-label="Sort songs">
+          <option value="new">Newest first</option>
+          <option value="az">Title A to Z</option>
+          <option value="gap">Closest difficulty</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="grid" id="grid"></div>
+    <div style="display:flex;justify-content:center;margin-top:16px"><button class="more" id="more" type="button" hidden>Show more</button></div>
+    <div id="empty" class="empty" hidden></div>
+  </section>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+//#region core
+// Pure matching logic, no DOM. Chart = [type (0 standard, 1 DX), slot (0 basic .. 4 re:master), level label, constant|null].
+// A level label such as "12+" becomes the number 12.5, so "12" to "13+" is the range 12 to 13.5.
+function levelValue(label) {
+  return parseFloat(label) + (label.endsWith("+") ? 0.5 : 0);
+}
+
+function inRange(chart, r, mode) {
+  if (mode === "const") return chart[3] != null && chart[3] >= r.lo - 1e-9 && chart[3] <= r.hi + 1e-9;
+  const v = levelValue(chart[2]);
+  return v >= r.lo && v <= r.hi;
+}
+
+function findMatches(songs, o) {
+  // o: { mode: "level" | "const", a: {lo, hi}, b: {lo, hi}, types: [std, dx] }
+  // Both players must play the same chart type (the game cannot mix Standard and DX on one song).
+  // They can pick the same difficulty, so one chart may serve both players.
+  const out = [];
+  for (const s of songs) {
+    const A = [], B = [];
+    for (const type of [0, 1]) {
+      if (!o.types[type]) continue;
+      const group = s.ch.filter((c) => c[0] === type);
+      const ga = group.filter((c) => inRange(c, o.a, o.mode));
+      const gb = group.filter((c) => inRange(c, o.b, o.mode));
+      if (ga.length && gb.length) { A.push(...ga); B.push(...gb); }
+    }
+    if (!A.length) continue;
+    let gap = Infinity;
+    for (const x of A) for (const y of B) {
+      if (x[0] === y[0] && x[3] != null && y[3] != null) gap = Math.min(gap, Math.abs(x[3] - y[3]));
+    }
+    out.push({ s, A, B, gap });
+  }
+  return out;
+}
+
+function sortMatches(list, mode) {
+  const byTitle = (x, y) => x.s.t.localeCompare(y.s.t);
+  if (mode === "az") return list.sort(byTitle);
+  if (mode === "gap") return list.sort((x, y) => x.gap - y.gap || byTitle(x, y));
+  return list.sort((x, y) => y.s.o - x.s.o || byTitle(x, y));
+}
+
+// ---- Romaji search -------------------------------------------------------------------------
+// Kana (either script) becomes Hepburn romaji, then every spelling variant (si/shi, tu/tsu, hu/fu, zya/ja,
+// ou/o, nn/n ...) is folded to one canonical form. The query and the song text go through the same
+// folding, so any common way of typing a word finds it.
+const KANA = Object.fromEntries(
+  ("ア a イ i ウ u エ e オ o カ ka キ ki ク ku ケ ke コ ko ガ ga ギ gi グ gu ゲ ge ゴ go サ sa シ shi ス su セ se ソ so " +
+   "ザ za ジ ji ズ zu ゼ ze ゾ zo タ ta チ chi ツ tsu テ te ト to ダ da ヂ ji ヅ zu デ de ド do ナ na ニ ni ヌ nu ネ ne ノ no " +
+   "ハ ha ヒ hi フ fu ヘ he ホ ho バ ba ビ bi ブ bu ベ be ボ bo パ pa ピ pi プ pu ペ pe ポ po マ ma ミ mi ム mu メ me モ mo " +
+   "ヤ ya ユ yu ヨ yo ラ ra リ ri ル ru レ re ロ ro ワ wa ヲ o ン n ヴ vu ヰ i ヱ e ヵ ka ヶ ke").split(" ")
+    .reduce((acc, v, i, arr) => (i % 2 ? acc : acc.concat([[v, arr[i + 1]]])), []));
+const SMALL_VOWEL = { "ァ": "a", "ィ": "i", "ゥ": "u", "ェ": "e", "ォ": "o" };
+const SMALL_Y = { "ャ": "ya", "ュ": "yu", "ョ": "yo", "ヮ": "wa" };
+
+function toRomaji(input) {
+  const tokens = [];           // { r: romaji, kana: true } for kana, { r: char } for anything else
+  let doubleNext = false;
+  for (let ch of [...input.normalize("NFKC")]) {
+    const code = ch.codePointAt(0);
+    if (code >= 0x3041 && code <= 0x3096) ch = String.fromCodePoint(code + 0x60);   // hiragana -> katakana
+    if (ch === "ッ") { doubleNext = true; continue; }
+    if (ch === "ー") continue;                                                    // long vowel: folded later
+    const last = tokens[tokens.length - 1];
+    if (SMALL_VOWEL[ch] && last && last.kana) {
+      const stem = last.r === "u" ? "w" : last.r === "i" ? "y" : last.r.replace(/[aiueo]$/, "");
+      last.r = stem + SMALL_VOWEL[ch]; continue;
+    }
+    if (SMALL_Y[ch] && last && last.kana) {
+      last.r = (/i$/.test(last.r) && last.r.length > 1 ? last.r.slice(0, -1) : last.r) + (ch === "ヮ" ? "wa" : SMALL_Y[ch]);
+      continue;
+    }
+    if (KANA[ch]) {
+      let r = KANA[ch];
+      if (doubleNext && !/^[aiueo]/.test(r)) r = r[0] + r;
+      tokens.push({ r, kana: true });
+    } else {
+      tokens.push({ r: ch });
+    }
+    doubleNext = false;
+  }
+  return tokens.map((t) => t.r).join("");
+}
+
+function canonRomaji(input) {
+  return toRomaji(input).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "")
+    .replace(/nn+/g, "n").replace(/m(?=[bmp])/g, "n")                       // shinnbun, shimbun -> shinbun
+    .replace(/shy/g, "sh").replace(/chy/g, "ch").replace(/jy/g, "j")          // shya, jya -> sha, ja
+    .replace(/ty(?=[aueo])/g, "ch").replace(/sy(?=[aueo])/g, "sh")            // tya, sya -> cha, sha
+    .replace(/zy(?=[aueo])/g, "j").replace(/dy(?=[aueo])/g, "j")              // zya, dya -> ja
+    .replace(/si/g, "shi").replace(/ti/g, "chi").replace(/zi/g, "ji").replace(/di/g, "ji")
+    .replace(/du/g, "zu").replace(/tu/g, "tsu").replace(/(?<![sc])hu/g, "fu")
+    .replace(/tch/g, "cch")                                                    // matchi, macchi
+    .replace(/ou/g, "o").replace(/([aiueo])\1+/g, "$1");                       // toukyou, tokyo, tookyoo
+}
+
+// otoge-db's kana is a sort key: no dakuten, no small kana, small tsu as a full tsu. This folds a canonical
+// romaji string the same way, so "zako" and the stored サコ meet in the middle.
+function fuzzRomaji(c) {
+  return c
+    .replace(/([sc]h|[knhmrgbpj])iy(?=[auo])/g, "$1y").replace(/shy/g, "sh").replace(/chy/g, "ch").replace(/jy/g, "j")
+    .replace(/j/g, "sh").replace(/z/g, "s").replace(/g/g, "k").replace(/d/g, "t").replace(/[bpf]/g, "h").replace(/v/g, "u")
+    .replace(/tsu(?=[b-df-hj-np-tv-z])/g, "").replace(/([b-df-hj-np-tv-z])\1+/g, "$1")
+    .replace(/([aiueo])\1+/g, "$1");
+}
+
+// Returns a function song -> boolean. Matches plain text first (kanji, English), then romaji.
+function makeMatcher(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return () => true;
+  const c = canonRomaji(q), f = c ? fuzzRomaji(c) : "";
+  return (s) => {
+    if ((s.t + " " + s.a).toLowerCase().includes(q)) return true;
+    if (!c) return false;
+    if (!s._keys) s._keys = { exact: canonRomaji(s.t) + "|" + canonRomaji(s.a), fuzzy: s.k ? fuzzRomaji(canonRomaji(s.k)) : "" };
+    // The loose reading match needs a couple of characters, or a query like "zzz" would fold to "s" and match half the library.
+    return s._keys.exact.includes(c) || (f.length >= 2 && s._keys.fuzzy.includes(f));
+  };
+}
+//#endregion
+
+if (typeof document !== "undefined") {
+(function () {
+  const SLOT_NAMES = ["Basic", "Advanced", "Expert", "Master", "Re:Master"];
+  const SLOT_SHORT = ["BAS", "ADV", "EXP", "MAS", "Re:M"];
+  const PAGE = 60;
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => String(t).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+
+  // Each player has a level range (labels) and a constant range (numbers). Equal ends mean a single value.
+  const state = {
+    mode: "level", span: "range", region: "intl", std: true, dx: true, sort: "new", q: "",
+    a: { lo: "12", hi: "12+" }, b: { lo: "13", hi: "13+" },
+    ca: { lo: 12.0, hi: 12.9 }, cb: { lo: 13.0, hi: 13.9 },
+  };
+
+  // Level choices and constant bounds come from the data, so new songs show up after a rebuild.
+  const charts = Object.values(DATA.regions).flatMap((r) => r.flatMap((s) => s.ch));
+  const levels = [...new Set(charts.map((c) => c[2]))].sort((x, y) => levelValue(x) - levelValue(y));
+  const consts = charts.map((c) => c[3]).filter((v) => v != null);
+  const CMIN = Math.floor(Math.min(...consts) * 10) / 10, CMAX = Math.ceil(Math.max(...consts) * 10) / 10;
+
+  const KEY = "maimai-pair-finder-v2";
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (saved && typeof saved === "object") Object.assign(state, saved, { q: "" });
+  } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+  const okLevel = (l) => levels.includes(l);
+  for (const k of ["a", "b"]) if (!state[k] || !okLevel(state[k].lo) || !okLevel(state[k].hi)) state[k] = { lo: "12", hi: "12" };
+  for (const k of ["ca", "cb"]) if (!state[k] || !(state[k].lo <= state[k].hi)) state[k] = { lo: 12, hi: 12.9 };
+
+  const opts = levels.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
+  function buildRange(el, key, ckey, who) {
+    el.innerHTML = `
+      <div class="select-wrap lv"><select data-k="${key}" data-end="lo" data-who="${who}" data-what="level">${opts}</select></div>
+      <span class="to lv">to</span>
+      <div class="select-wrap lv"><select data-k="${key}" data-end="hi" data-who="${who}" data-what="level">${opts}</select></div>
+      <input class="num cn" type="number" inputmode="decimal" step="0.1" min="${CMIN}" max="${CMAX}" data-k="${ckey}" data-end="lo" data-who="${who}" data-what="constant">
+      <span class="to cn">to</span>
+      <input class="num cn" type="number" inputmode="decimal" step="0.1" min="${CMIN}" max="${CMAX}" data-k="${ckey}" data-end="hi" data-who="${who}" data-what="constant">`;
+  }
+  buildRange($("rangeA"), "a", "ca", "Player 1");
+  buildRange($("rangeB"), "b", "cb", "Player 2");
+
+  function syncControls() {
+    document.querySelectorAll("select[data-k]").forEach((el) => { el.value = state[el.dataset.k][el.dataset.end]; });
+    document.querySelectorAll("input.num").forEach((el) => { el.value = state[el.dataset.k][el.dataset.end].toFixed(1); });
+    const constMode = state.mode === "const", single = state.span === "single";
+    // Show only the active kind (level or constant); in single mode also drop the "to" and the high end.
+    document.querySelectorAll(".lv, .cn").forEach((el) => {
+      const wrongKind = el.classList.contains("lv") ? constMode : !constMode;
+      const highPart = el.classList.contains("to") || el.dataset.end === "hi" || !!el.querySelector('[data-end="hi"]');
+      el.hidden = wrongKind || (single && highPart);
+    });
+    document.querySelectorAll(".range").forEach((r) => r.classList.toggle("single", single));
+    document.querySelectorAll("[data-who]").forEach((el) => {
+      const side = single ? "" : (el.dataset.end === "lo" ? "lowest " : "highest ");
+      el.setAttribute("aria-label", `${el.dataset.who} ${side}${el.dataset.what}`);
+    });
+    document.querySelectorAll('input[name="span"]').forEach((r) => { r.checked = r.value === state.span; });
+    $("tStd").checked = !!state.std; $("tDx").checked = !!state.dx;
+    $("sort").value = state.sort;
+    document.querySelectorAll('input[name="region"]').forEach((r) => { r.checked = r.value === state.region; });
+    document.querySelectorAll('input[name="mode"]').forEach((r) => { r.checked = r.value === state.mode; });
+  }
+  // .range is a 3-column grid; hidden nodes drop out, so show only the active trio.
+
+  const versionName = (code) => {
+    let idx = 0;
+    DATA.versionStarts.forEach((start, i) => { if (code >= start) idx = i; });
+    return DATA.versions[idx];
+  };
+
+  const chip = (c) => {
+    const cls = `chip d${c[1]}${c[0] === 1 ? " dx" : ""}`;
+    const k = c[3] != null ? c[3].toFixed(1) : "?";
+    return `<span class="${cls}" title="${c[0] ? "DX" : "Standard"} ${SLOT_NAMES[c[1]]} ${esc(c[2])}${c[3] != null ? " (" + k + ")" : ""}"><span class="tag">${c[0] ? "DX" : "STD"}</span>${SLOT_SHORT[c[1]]} ${k}</span>`;
+  };
+
+  // The active range for a player: the single value uses the low end only.
+  const active = (key) => {
+    const r = state.mode === "const" ? state[key === "a" ? "ca" : "cb"] : state[key];
+    return state.span === "single" ? { lo: r.lo, hi: r.lo } : r;
+  };
+  // "12", "12–12+" or "12.0–12.9"
+  const rangeText = (key) => {
+    const r = active(key), f = state.mode === "const" ? (v) => v.toFixed(1) : (v) => v;
+    return r.lo === r.hi ? f(r.lo) : `${f(r.lo)}–${f(r.hi)}`;
+  };
+
+  const card = ({ s, A, B }) => {
+    const atlas = DATA.atlas;
+    const jacket = `<div class="jacket" style="--cols:${atlas.cols};--c:${s.j % atlas.cols};--r:${Math.floor(s.j / atlas.cols)}" role="img" aria-label="Jacket"></div>`;
+    const sortSlots = (l) => l.slice().sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    return `<article class="song">
+      <div class="top">${jacket}<div class="meta"><h3>${esc(s.t)}</h3><p class="artist">${esc(s.a)}</p><p class="sub">BPM ${esc(s.b)} &middot; ${esc(versionName(s.o))}</p></div></div>
+      <div class="pairs">
+        <span class="who">P1</span><span class="chips">${sortSlots(A).map(chip).join("")}</span>
+        <span class="who">P2</span><span class="chips">${sortSlots(B).map(chip).join("")}</span>
+      </div></article>`;
+  };
+
+  const toRange = (key) => {
+    const r = active(key);
+    return state.mode === "const" ? { lo: r.lo, hi: r.hi } : { lo: levelValue(r.lo), hi: levelValue(r.hi) };
+  };
+
+  let shown = PAGE, current = [];
+  function render() {
+    const songs = DATA.regions[state.region];
+    const all = findMatches(songs, { mode: state.mode, a: toRange("a"), b: toRange("b"), types: [state.std, state.dx] });
+    const q = state.q.trim();
+    const match = makeMatcher(q);
+    current = sortMatches(q ? all.filter((m) => match(m.s)) : all, state.sort);
+
+    const ra = rangeText("a"), rb = rangeText("b");
+    $("count").innerHTML = `<b>${current.length}</b> ${current.length === 1 ? "song works" : "songs work"} for <b>${esc(ra)}</b> and <b>${esc(rb)}</b>`;
+    $("grid").innerHTML = current.slice(0, shown).map(card).join("");
+    $("more").hidden = current.length <= shown;
+    $("more").textContent = `Show more (${current.length - shown} left)`;
+
+    const empty = $("empty");
+    empty.hidden = current.length > 0;
+    if (!current.length) {
+      empty.innerHTML = `<strong>No songs match</strong>${all.length && q ? "Try a different search." : "Try widening a range, or turn on both chart types."}`;
+    }
+    $("foot").innerHTML = `${songs.length} songs loaded (${state.region === "intl" ? "International" : "Japan"} version). Both players are on the same chart type, and can pick the same difficulty. Song data from <a href="https://github.com/zvuc/otoge-db" target="_blank" rel="noopener">Otoge DB</a>, chart constants are community estimates. Jackets belong to SEGA.`;
+  }
+
+  const update = () => { shown = PAGE; save(); render(); };
+
+  // Keep each range ordered. A range that was a single value stays single while its low end moves.
+  function setEnd(key, end, value) {
+    const r = state[key];
+    const isConst = key.startsWith("c");
+    const cmp = isConst ? (x, y) => x - y : (x, y) => levelValue(x) - levelValue(y);
+    if (state.span === "single") { r.lo = r.hi = value; return; }   // single value: both ends move together
+    const wasSingle = r.lo === r.hi;
+    r[end] = value;
+    if (end === "lo" && (wasSingle || cmp(r.lo, r.hi) > 0)) r.hi = r.lo;
+    if (end === "hi" && cmp(r.lo, r.hi) > 0) r.lo = r.hi;
+  }
+  document.querySelectorAll("select[data-k]").forEach((el) => el.addEventListener("change", (e) => {
+    setEnd(el.dataset.k, el.dataset.end, e.target.value); syncControls(); update();
+  }));
+  document.querySelectorAll("input.num").forEach((el) => el.addEventListener("change", (e) => {
+    let v = parseFloat(e.target.value);
+    if (!Number.isFinite(v)) { syncControls(); return; }
+    v = Math.min(CMAX, Math.max(CMIN, Math.round(v * 10) / 10));
+    setEnd(el.dataset.k, el.dataset.end, v); syncControls(); update();
+  }));
+  $("swap").addEventListener("click", () => {
+    [state.a, state.b] = [state.b, state.a]; [state.ca, state.cb] = [state.cb, state.ca]; syncControls(); update();
+  });
+  $("tStd").addEventListener("change", (e) => { state.std = e.target.checked; update(); });
+  $("tDx").addEventListener("change", (e) => { state.dx = e.target.checked; update(); });
+  $("sort").addEventListener("change", (e) => { state.sort = e.target.value; update(); });
+  $("q").addEventListener("input", (e) => { state.q = e.target.value; shown = PAGE; render(); });
+  $("more").addEventListener("click", () => { shown += PAGE; render(); });
+  document.querySelectorAll('input[name="region"]').forEach((r) => r.addEventListener("change", (e) => { state.region = e.target.value; update(); }));
+  document.querySelectorAll('input[name="span"]').forEach((r) => r.addEventListener("change", (e) => { state.span = e.target.value; syncControls(); update(); }));
+  document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener("change", (e) => { state.mode = e.target.value; syncControls(); update(); }));
+
+  syncControls();
+  render();
+})();
+}
+</script>
