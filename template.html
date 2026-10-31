@@ -137,6 +137,8 @@ button, select, input { font: inherit; color: inherit; }
 }
 .meta { min-width: 0; }
 .meta h3 { font-size: 16px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+.meta h3[data-r]::after { content: " · " attr(data-r); color: var(--muted); font-size: 12px; opacity: 0; }
+.meta h3:hover::after, .meta h3:active::after { opacity: 1; } /* :hover sticks after a tap on phones */
 .meta .artist { margin: 2px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .meta .sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pairs { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; }
@@ -201,8 +203,8 @@ button, select, input { font: inherit; color: inherit; }
       <div class="fgroup" role="radiogroup" aria-label="Range or single value">
         <span>Each player</span>
         <div class="chiprow">
-          <label class="toggle"><input type="radio" name="span" value="range" checked><span>Range (12 to 12+)</span></label>
-          <label class="toggle"><input type="radio" name="span" value="single"><span>Single value</span></label>
+          <label class="toggle"><input type="radio" name="span" value="range"><span>Range (12 to 12+)</span></label>
+          <label class="toggle"><input type="radio" name="span" value="single" checked><span>Single value</span></label>
         </div>
       </div>
       <div class="fgroup" role="radiogroup" aria-label="Game version">
@@ -226,7 +228,7 @@ button, select, input { font: inherit; color: inherit; }
     <div class="bar">
       <p class="count" id="count"></p>
       <div class="tools">
-        <input id="q" type="search" placeholder="Search (romaji works)" aria-label="Search title or artist, romaji works" autocomplete="off">
+        <input id="q" type="search" placeholder="Search" aria-label="Search title or artist" autocomplete="off">
         <select id="sort" aria-label="Sort songs">
           <option value="new">Newest first</option>
           <option value="az">Title A to Z</option>
@@ -381,7 +383,7 @@ if (typeof document !== "undefined") {
 
   // Each player has a level range (labels) and a constant range (numbers). Equal ends mean a single value.
   const state = {
-    mode: "level", span: "range", region: "intl", std: true, dx: true, sort: "new", q: "",
+    mode: "level", span: "single", region: "intl", std: true, dx: true, sort: "new", q: "",
     a: { lo: "12", hi: "12+" }, b: { lo: "13", hi: "13+" },
     ca: { lo: 12.0, hi: 12.9 }, cb: { lo: 13.0, hi: 13.9 },
   };
@@ -466,7 +468,7 @@ if (typeof document !== "undefined") {
     const jacket = `<div class="jacket" style="--cols:${atlas.cols};--c:${s.j % atlas.cols};--r:${Math.floor(s.j / atlas.cols)}" role="img" aria-label="Jacket"></div>`;
     const sortSlots = (l) => l.slice().sort((x, y) => x[0] - y[0] || x[1] - y[1]);
     return `<article class="song">
-      <div class="top">${jacket}<div class="meta"><h3>${esc(s.t)}</h3><p class="artist">${esc(s.a)}</p><p class="sub">BPM ${esc(s.b)} &middot; ${esc(versionName(s.o))}</p></div></div>
+      <div class="top">${jacket}<div class="meta"><h3${s.k ? ` data-r="${esc(`${s.k} → ${toRomaji(s.k)}`)}"` : ""}>${esc(s.t)}</h3><p class="artist">${esc(s.a)}</p><p class="sub">BPM ${esc(s.b)} &middot; ${esc(versionName(s.o))}</p></div></div>
       <div class="pairs">
         <span class="who">P1</span><span class="chips">${sortSlots(A).map(chip).join("")}</span>
         <span class="who">P2</span><span class="chips">${sortSlots(B).map(chip).join("")}</span>
