@@ -2,8 +2,13 @@
 """Build the maimai Pair Finder site from a clone of zvuc/otoge-db.
 
 Usage:
+    pip install pillow pykakasi
     git clone --depth 1 https://github.com/zvuc/otoge-db.git
     python3 build.py ./otoge-db/maimai
+
+translations.txt holds the romaji and English titles shown when you hover or tap a title.
+Format: 'title || romaji || english', one per line. Edit it and rebuild to fix a translation.
+The English titles are unofficial. Kana-only titles without a romaji entry get one from pykakasi.
 
 Output (in ./dist):
     index.html    the page, with the slim song data inlined
@@ -50,7 +55,50 @@ def version_index(code: int) -> int:
     return idx
 
 
-def load_region(path: Path, region: str):
+MACRON = {"aa": "ā", "ii": "ī", "uu": "ū", "ee": "ē", "oo": "ō"}
+_KKS = None
+
+
+def load_translations(path: Path):
+    """translations.txt: one 'title || romaji || english' per line. Either field may be empty."""
+    rows = {}
+    if not path.exists():
+        return rows
+    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        parts = [p.strip() for p in line.split("||")]
+        if len(parts) != 3:
+            sys.exit(f"translations.txt line {n}: expected 'title || romaji || english'")
+        # A title may appear on several lines; later non-empty fields fill in or replace earlier ones.
+        old = rows.get(parts[0], ("", ""))
+        rows[parts[0]] = (parts[1] or old[0], parts[2] or old[1])
+    return rows
+
+
+def auto_romaji(title: str) -> str:
+    """Romaji for titles written only in kana, using pykakasi (pip install pykakasi). Empty if unavailable."""
+    global _KKS
+    try:
+        import pykakasi
+    except ImportError:
+        return ""
+    if _KKS is None:
+        _KKS = pykakasi.kakasi()
+    words = []
+    for tok in _KKS.convert(title):
+        h = tok["hepburn"]
+        if "ー" in tok["orig"]:
+            h = re.sub(r"aa|ii|uu|ee|oo", lambda m: MACRON[m.group()], h)
+        words.append(h)
+    s = " ".join(w for w in words if w.strip())
+    s = re.sub(r"\s+([!?.,:;)\]」』】！？。、])", r"\1", s)
+    s = re.sub(r"([(\[「『【])\s+", r"\1", s)
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    return " ".join(w[:1].upper() + w[1:] for w in s.split(" "))
+
+
+def load_region(path: Path, region: str, translations):
     songs = json.loads(path.read_text(encoding="utf-8"))
     out = []
     for s in songs:
@@ -83,6 +131,14 @@ def load_region(path: Path, region: str):
         kana = s.get("title_kana", "")
         if re.search("[぀-ヿ]", kana):
             song["k"] = kana
+        # Romaji ("r") and English ("e") for the hover/tap popover and for search.
+        romaji, english = translations.get(s["title"], ("", ""))
+        if not romaji and re.search("[぀-ヿ]", s["title"]) and not re.search("[一-鿿]", s["title"]):
+            romaji = auto_romaji(s["title"])
+        if romaji and romaji != s["title"]:
+            song["r"] = romaji
+        if english and english != s["title"]:
+            song["e"] = english
         out.append(song)
     return out
 
@@ -96,10 +152,15 @@ def main():
         if not p.is_dir():
             sys.exit(f"Not found: {p}\nPass the 'maimai' folder of an otoge-db clone.")
 
+    translations = load_translations(HERE / "translations.txt")
     regions = {
-        "intl": load_region(data_dir / "music-ex-intl.json", "intl"),
-        "jp": load_region(data_dir / "music-ex.json", "jp"),
+        "intl": load_region(data_dir / "music-ex-intl.json", "intl", translations),
+        "jp": load_region(data_dir / "music-ex.json", "jp", translations),
     }
+    known = {s["t"] for songs in regions.values() for s in songs}
+    unknown = [t for t in translations if t not in known]
+    if unknown:
+        print(f"warning: {len(unknown)} titles in translations.txt are not in the data, e.g. {unknown[:3]}")
 
     # One shared sprite sheet for every jacket either region uses.
     names = sorted({s["i"] for songs in regions.values() for s in songs})
