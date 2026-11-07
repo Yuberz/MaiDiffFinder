@@ -1,5 +1,5 @@
 <title>maimai Pair Finder</title>
-<meta name="viewport" content="width=device-width">
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&family=Noto+Sans+JP:wght@400;500;700&display=swap">
@@ -136,6 +136,22 @@ button, select, input { font: inherit; color: inherit; }
   background-position: calc(var(--c) * var(--j) * -1) calc(var(--r) * var(--j) * -1);
 }
 .meta { min-width: 0; }
+/* Title popover: romaji and English. Hover on a mouse, tap on a phone, focus on a keyboard. */
+.tt { position: relative; width: fit-content; max-width: 100%; }
+.tbtn {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; text-align: left; cursor: help;
+  text-decoration: underline dotted var(--muted); text-underline-offset: 4px; overflow-wrap: anywhere;
+}
+.reading {
+  display: none; position: absolute; left: 0; top: 100%; z-index: 30; width: max-content; max-width: min(300px, calc(100vw - 130px));
+  padding: 9px 12px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2); font-size: 13px; line-height: 1.4;
+  grid-template-columns: auto 1fr; gap: 3px 10px;
+}
+.reading .lab { font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.reading .val { overflow-wrap: anywhere; font-weight: 500; }
+.tt.open .reading, .tt:has(.tbtn:focus-visible) .reading { display: grid; }
+@media (hover: hover) { .tt:hover .reading { display: grid; } }
 .meta h3 { font-size: 16px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
 .meta .artist { margin: 2px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .meta .sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -201,8 +217,8 @@ button, select, input { font: inherit; color: inherit; }
       <div class="fgroup" role="radiogroup" aria-label="Range or single value">
         <span>Each player</span>
         <div class="chiprow">
-          <label class="toggle"><input type="radio" name="span" value="range" checked><span>Range (12 to 12+)</span></label>
-          <label class="toggle"><input type="radio" name="span" value="single"><span>Single value</span></label>
+          <label class="toggle"><input type="radio" name="span" value="single" checked><span>Single value</span></label>
+          <label class="toggle"><input type="radio" name="span" value="range"><span>Range (12 to 12+)</span></label>
         </div>
       </div>
       <div class="fgroup" role="radiogroup" aria-label="Game version">
@@ -226,7 +242,7 @@ button, select, input { font: inherit; color: inherit; }
     <div class="bar">
       <p class="count" id="count"></p>
       <div class="tools">
-        <input id="q" type="search" placeholder="Search (romaji works)" aria-label="Search title or artist, romaji works" autocomplete="off">
+        <input id="q" type="search" placeholder="Search (romaji or English)" aria-label="Search title or artist, romaji or English works" autocomplete="off">
         <select id="sort" aria-label="Sort songs">
           <option value="new">Newest first</option>
           <option value="az">Title A to Z</option>
@@ -362,9 +378,9 @@ function makeMatcher(query) {
   if (!q) return () => true;
   const c = canonRomaji(q), f = c ? fuzzRomaji(c) : "";
   return (s) => {
-    if ((s.t + " " + s.a).toLowerCase().includes(q)) return true;
+    if ((s.t + " " + s.a + " " + (s.e || "")).toLowerCase().includes(q)) return true;   // title, artist, English translation
     if (!c) return false;
-    if (!s._keys) s._keys = { exact: canonRomaji(s.t) + "|" + canonRomaji(s.a), fuzzy: s.k ? fuzzRomaji(canonRomaji(s.k)) : "" };
+    if (!s._keys) s._keys = { exact: canonRomaji(s.t) + "|" + canonRomaji(s.a) + "|" + canonRomaji(s.r || "") + "|" + canonRomaji(s.e || ""), fuzzy: s.k ? fuzzRomaji(canonRomaji(s.k)) : "" };
     // The loose reading match needs a couple of characters, or a query like "zzz" would fold to "s" and match half the library.
     return s._keys.exact.includes(c) || (f.length >= 2 && s._keys.fuzzy.includes(f));
   };
@@ -381,9 +397,9 @@ if (typeof document !== "undefined") {
 
   // Each player has a level range (labels) and a constant range (numbers). Equal ends mean a single value.
   const state = {
-    mode: "level", span: "range", region: "intl", std: true, dx: true, sort: "new", q: "",
-    a: { lo: "12", hi: "12+" }, b: { lo: "13", hi: "13+" },
-    ca: { lo: 12.0, hi: 12.9 }, cb: { lo: 13.0, hi: 13.9 },
+    mode: "level", span: "single", region: "intl", std: true, dx: true, sort: "new", q: "",
+    a: { lo: "13+", hi: "13+" }, b: { lo: "12", hi: "12" },
+    ca: { lo: 13.7, hi: 13.7 }, cb: { lo: 12.4, hi: 12.4 },
   };
 
   // Level choices and constant bounds come from the data, so new songs show up after a rebuild.
@@ -392,7 +408,7 @@ if (typeof document !== "undefined") {
   const consts = charts.map((c) => c[3]).filter((v) => v != null);
   const CMIN = Math.floor(Math.min(...consts) * 10) / 10, CMAX = Math.ceil(Math.max(...consts) * 10) / 10;
 
-  const KEY = "maimai-pair-finder-v2";
+  const KEY = "maimai-pair-finder-v3";
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || "null");
     if (saved && typeof saved === "object") Object.assign(state, saved, { q: "" });
@@ -465,8 +481,14 @@ if (typeof document !== "undefined") {
     const atlas = DATA.atlas;
     const jacket = `<div class="jacket" style="--cols:${atlas.cols};--c:${s.j % atlas.cols};--r:${Math.floor(s.j / atlas.cols)}" role="img" aria-label="Jacket"></div>`;
     const sortSlots = (l) => l.slice().sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    // Titles with a romaji or English reading get a popover; plain English titles stay plain.
+    const title = s.r || s.e
+      ? `<div class="tt"><h3><button type="button" class="tbtn" aria-expanded="false">${esc(s.t)}</button></h3><div class="reading">` +
+        (s.r ? `<span class="lab">Romaji</span><span class="val">${esc(s.r)}</span>` : "") +
+        (s.e ? `<span class="lab">English</span><span class="val">${esc(s.e)}</span>` : "") + `</div></div>`
+      : `<h3>${esc(s.t)}</h3>`;
     return `<article class="song">
-      <div class="top">${jacket}<div class="meta"><h3>${esc(s.t)}</h3><p class="artist">${esc(s.a)}</p><p class="sub">BPM ${esc(s.b)} &middot; ${esc(versionName(s.o))}</p></div></div>
+      <div class="top">${jacket}<div class="meta">${title}<p class="artist">${esc(s.a)}</p><p class="sub">BPM ${esc(s.b)} &middot; ${esc(versionName(s.o))}</p></div></div>
       <div class="pairs">
         <span class="who">P1</span><span class="chips">${sortSlots(A).map(chip).join("")}</span>
         <span class="who">P2</span><span class="chips">${sortSlots(B).map(chip).join("")}</span>
@@ -497,7 +519,7 @@ if (typeof document !== "undefined") {
     if (!current.length) {
       empty.innerHTML = `<strong>No songs match</strong>${all.length && q ? "Try a different search." : "Try widening a range, or turn on both chart types."}`;
     }
-    $("foot").innerHTML = `${songs.length} songs loaded (${state.region === "intl" ? "International" : "Japan"} version). Both players are on the same chart type, and can pick the same difficulty. Song data from <a href="https://github.com/zvuc/otoge-db" target="_blank" rel="noopener">Otoge DB</a>, chart constants are community estimates. Jackets belong to SEGA.`;
+    $("foot").innerHTML = `${songs.length} songs loaded (${state.region === "intl" ? "International" : "Japan"} version). Both players are on the same chart type, and can pick the same difficulty. Tap or hover a Japanese title for its romaji and English. The English titles are unofficial translations. Song data from <a href="https://github.com/zvuc/otoge-db" target="_blank" rel="noopener">Otoge DB</a>, chart constants are community estimates. Jackets belong to SEGA.`;
   }
 
   const update = () => { shown = PAGE; save(); render(); };
@@ -530,6 +552,17 @@ if (typeof document !== "undefined") {
   $("sort").addEventListener("change", (e) => { state.sort = e.target.value; update(); });
   $("q").addEventListener("input", (e) => { state.q = e.target.value; shown = PAGE; render(); });
   $("more").addEventListener("click", () => { shown += PAGE; render(); });
+  // Tap or click a title to pin its popover; tap anywhere else (or press Escape) to close it.
+  const closeTitles = (except) => document.querySelectorAll(".tt.open").forEach((el) => {
+    if (el !== except) { el.classList.remove("open"); el.querySelector(".tbtn").setAttribute("aria-expanded", "false"); }
+  });
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest && e.target.closest(".tbtn");
+    const tt = btn ? btn.closest(".tt") : null;
+    closeTitles(tt);
+    if (tt) { const open = tt.classList.toggle("open"); btn.setAttribute("aria-expanded", String(open)); }
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTitles(null); });
   document.querySelectorAll('input[name="region"]').forEach((r) => r.addEventListener("change", (e) => { state.region = e.target.value; update(); }));
   document.querySelectorAll('input[name="span"]').forEach((r) => r.addEventListener("change", (e) => { state.span = e.target.value; syncControls(); update(); }));
   document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener("change", (e) => { state.mode = e.target.value; syncControls(); update(); }));
